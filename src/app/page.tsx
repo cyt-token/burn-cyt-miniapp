@@ -1,302 +1,191 @@
 "use client";
 
 import { useState } from "react";
-import { BrowserProvider, Contract, parseUnits } from "ethers";
-import fixedRewardBurnAbi from "../abi/FixedRewardBurn10.json";
+import { BrowserProvider, Contract } from "ethers";
+import abi from "../abi/FixedRewardBurn.json"; // ABI dari file kamu
 
-// alamat kontrak fixed-reward 10 CYT
-const FIXED_REWARD_BURN_ADDRESS =
-  "0x732DA80332f445b783E0320DE35eBCB789c8262f";
+// KONTRAK BARU FIXED REWARD 10 CYT
+const BURN_CONTRACT = "0x732DA80332f445b783E0320DE35eBCB789c8262f";
 
-// asumsikan rewardToken dan token yang dibakar punya 18 desimal
-const DECIMALS = 18;
+export default function MiniApp() {
+  const [token, setToken] = useState("");
+  const [status, setStatus] = useState("Ready.");
+  const [loading, setLoading] = useState(false);
 
-// hanya untuk tampilan
-const FIXED_REWARD_DISPLAY = "10";
-
-// minimal ABI ERC20 yang kita pakai
-const erc20Abi = [
-  "function balanceOf(address owner) view returns (uint256)",
-  "function approve(address spender, uint256 amount) returns (bool)"
-];
-
-export default function Home() {
-  const [tokenToBurn, setTokenToBurn] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
-  const [loadingApprove, setLoadingApprove] = useState(false);
-  const [loadingBurn, setLoadingBurn] = useState(false);
-
-  async function getSigner() {
-    if (typeof window === "undefined" || !(window as any).ethereum) {
-      throw new Error("Wallet not found – open with Rabby / MetaMask");
-    }
-    const provider = new BrowserProvider((window as any).ethereum);
+  async function getWallet() {
+    const provider = new BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
-    return { provider, signer };
+    const address = await signer.getAddress();
+    return { provider, signer, address };
   }
 
-  async function handleApprove() {
+  async function burnToken() {
     try {
-      setStatus("Checking wallet balance…");
-      setLoadingApprove(true);
+      if (!token) return setStatus("Paste the token address first.");
 
-      const { signer } = await getSigner();
-      const userAddress = await signer.getAddress();
+      setLoading(true);
+      setStatus("Processing…");
 
-      const erc20 = new Contract(tokenToBurn, erc20Abi, signer) as any;
+      const { provider, signer, address } = await getWallet();
 
-      // approve full balance
-      const balance = await erc20.balanceOf(userAddress);
+      const ERC20 = new Contract(token, [
+        "function balanceOf(address) view returns (uint256)",
+        "function transferFrom(address,address,uint256) returns (bool)"
+      ], provider);
 
-      if (balance === 0n) {
-        setStatus("Your balance is 0 – nothing to burn.");
+      const bal = await ERC20.balanceOf(address);
+      if (bal === 0n) {
+        setStatus("You don't have tokens to burn.");
+        setLoading(false);
         return;
       }
 
-      const tx = await erc20.approve(FIXED_REWARD_BURN_ADDRESS, balance);
-      setStatus("Waiting for approve confirmation…");
+      const Burn = new Contract(BURN_CONTRACT, abi, signer);
+
+      const tx = await Burn.burnAnyToken(token);
       await tx.wait();
 
-      setStatus("Approve success ✅ Now you can Burn & Claim.");
-    } catch (err: any) {
-      console.error(err);
-      setStatus(`Approve failed ❌: ${err.message ?? err.toString()}`);
+      setStatus("Success! You received 10 CYT 🎉");
+    } catch (e: any) {
+      setStatus("Error: " + (e?.shortMessage || e?.message));
     } finally {
-      setLoadingApprove(false);
-    }
-  }
-
-  async function handleBurn() {
-    try {
-      setLoadingBurn(true);
-      setStatus("Preparing burn transaction…");
-
-      const { signer } = await getSigner();
-      const userAddress = await signer.getAddress();
-
-      const erc20 = new Contract(tokenToBurn, erc20Abi, signer) as any;
-      const balance = await erc20.balanceOf(userAddress);
-
-      if (balance === 0n) {
-        setStatus("Your balance is 0 – nothing to burn.");
-        return;
-      }
-
-      const fixedBurn = new Contract(
-        FIXED_REWARD_BURN_ADDRESS,
-        fixedRewardBurnAbi as any,
-        signer
-      ) as any;
-
-      // burn full balance, reward 10 CYT (logic di kontrak)
-      const tx = await fixedBurn.burnAnyToken(tokenToBurn, balance);
-      setStatus("Sending burn tx…");
-      await tx.wait();
-
-      setStatus(
-        `Burn success ✅ You received a fixed reward of ${FIXED_REWARD_DISPLAY} CYT.`
-      );
-    } catch (err: any) {
-      console.error(err);
-      setStatus(`Burn failed ❌: ${err.message ?? err.toString()}`);
-    } finally {
-      setLoadingBurn(false);
+      setLoading(false);
     }
   }
 
   return (
-    <div
+    <main
       style={{
         minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
         background:
-          "radial-gradient(circle at top, #2b002b 0, #05040a 40%, #000000 100%)",
+          "radial-gradient(circle at top, #1a002c 0%, #000 60%, #000 100%)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 20,
+        fontFamily: "Inter, sans-serif",
         color: "#fff",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
       }}
     >
+      {/* GLOW BACKGROUND ORB */}
       <div
         style={{
-          width: 420,
-          maxWidth: "90vw",
-          padding: 32,
-          borderRadius: 24,
-          background:
-            "linear-gradient(145deg, rgba(255,0,90,0.15), rgba(0,255,255,0.06))",
-          boxShadow:
-            "0 0 40px rgba(255,0,90,0.7), 0 0 80px rgba(0,255,255,0.3)",
+          position: "fixed",
+          top: -120,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: 300,
+          height: 300,
+          background: "rgba(255,0,200,0.25)",
+          filter: "blur(140px)",
+          borderRadius: "50%",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* CARD */}
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 380,
+          padding: 22,
+          borderRadius: 18,
+          background: "rgba(20,20,20,0.7)",
+          backdropFilter: "blur(14px)",
           border: "1px solid rgba(255,255,255,0.08)",
-          backdropFilter: "blur(18px)"
+          boxShadow:
+            "0 0 25px rgba(255,0,200,0.25), inset 0 0 20px rgba(255,255,255,0.04)",
+          position: "relative",
         }}
       >
+        {/* NEON BORDER */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 4,
-            fontSize: 14,
-            letterSpacing: 1.2,
-            textTransform: "uppercase"
-          }}
-        >
-          <span style={{ fontSize: 20 }}>🔥</span>
-          <span style={{ fontWeight: 600, color: "#ff4d7a" }}>Burn → Earn CYT</span>
-        </div>
-
-        <h1
-          style={{
-            fontSize: 26,
-            margin: "4px 0 12px",
-            fontWeight: 700
-          }}
-        >
-          Burn Token, Get{" "}
-          <span style={{ color: "#ff4d7a" }}>{FIXED_REWARD_DISPLAY} CYT</span>
-        </h1>
-
-        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 16 }}>
-          Every time you burn{" "}
-          <strong>100% of your balance</strong> of a token, you get a fixed reward
-          of{" "}
-          <strong>
-            {FIXED_REWARD_DISPLAY} CYT
-          </strong>{" "}
-          — no matter how many tokens are burned. Make sure you&apos;re on Base
-          and have enough gas.
-        </p>
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            fontSize: 12,
-            marginBottom: 16,
-            padding: "8px 10px",
-            borderRadius: 999,
-            background: "rgba(0,0,0,0.45)",
-            border: "1px solid rgba(255,255,255,0.06)"
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: "#10b981",
-              boxShadow: "0 0 8px #10b981"
-            }}
-          />
-          <span style={{ opacity: 0.85 }}>Network:</span>
-          <strong>Base</strong>
-          <span style={{ opacity: 0.35 }}>•</span>
-          <span style={{ opacity: 0.85 }}>Reward per burn:</span>
-          <strong>{FIXED_REWARD_DISPLAY} CYT</strong>
-        </div>
-
-        {/* token address input */}
-        <label
-          style={{
-            display: "block",
-            fontSize: 12,
-            marginBottom: 6,
-            opacity: 0.8
-          }}
-        >
-          Token address to burn
-        </label>
-        <input
-          value={tokenToBurn}
-          onChange={(e) => setTokenToBurn(e.target.value.trim())}
-          placeholder="0x..."
-          style={{
-            width: "100%",
-            padding: "10px 14px",
-            marginBottom: 14,
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.1)",
-            background: "rgba(5,5,20,0.9)",
-            color: "#fff",
-            fontSize: 13,
-            outline: "none",
-            boxShadow: "0 0 0 1px rgba(0,0,0,0)"
+            position: "absolute",
+            inset: -3,
+            borderRadius: 20,
+            background:
+              "linear-gradient(135deg, #ff00d4, #0066ff, #ff00d4)",
+            zIndex: -1,
+            filter: "blur(18px)",
+            opacity: 0.6,
           }}
         />
 
-        {/* buttons */}
-        <button
-          onClick={handleApprove}
-          disabled={!tokenToBurn || loadingApprove || loadingBurn}
+        <h2
           style={{
-            width: "100%",
-            padding: "10px 16px",
-            borderRadius: 999,
-            border: "none",
-            marginBottom: 10,
-            background:
-              "linear-gradient(90deg, rgba(148, 163, 184, 0.4), rgba(15, 23, 42, 0.95))",
-            color: "#e5e7eb",
-            fontSize: 14,
-            fontWeight: 500,
-            cursor:
-              !tokenToBurn || loadingApprove || loadingBurn ? "not-allowed" : "pointer",
-            opacity: !tokenToBurn || loadingApprove || loadingBurn ? 0.55 : 1
+            textAlign: "center",
+            marginBottom: 6,
+            fontSize: 22,
+            fontWeight: 700,
           }}
         >
-          {loadingApprove ? "Approving…" : "1. Approve"}
-        </button>
-
-        <button
-          onClick={handleBurn}
-          disabled={!tokenToBurn || loadingApprove || loadingBurn}
-          style={{
-            width: "100%",
-            padding: "11px 16px",
-            borderRadius: 999,
-            border: "none",
-            background:
-              "radial-gradient(circle at 0 0, #ff8a8a 0, #ff006f 35%, #7c0fff 100%)",
-            boxShadow:
-              "0 0 24px rgba(255,0,111,0.9), 0 0 40px rgba(124,15,255,0.6)",
-            color: "#fff",
-            fontSize: 15,
-            fontWeight: 600,
-            cursor:
-              !tokenToBurn || loadingApprove || loadingBurn ? "not-allowed" : "pointer",
-            opacity: !tokenToBurn || loadingApprove || loadingBurn ? 0.55 : 1,
-            marginBottom: 12
-          }}
-        >
-          {loadingBurn ? "Burning…" : "2. Burn & Claim"}
-        </button>
-
-        {/* status text */}
-        {status && (
-          <p
-            style={{
-              fontSize: 12,
-              marginTop: 4,
-              color: status.includes("success") ? "#bbf7d0" : "#fecaca"
-            }}
-          >
-            Status: {status}
-          </p>
-        )}
+          🔥 Burn → Earn 10 CYT
+        </h2>
 
         <p
           style={{
-            marginTop: 16,
-            fontSize: 11,
-            opacity: 0.55,
-            textAlign: "center"
+            textAlign: "center",
+            fontSize: 13,
+            marginBottom: 16,
+            color: "#ccc",
           }}
         >
-          Built for degens: burn spam tokens, farm CYT, stay on-chain. ✨
+          Burn any token & instantly claim your reward.
+        </p>
+
+        {/* INPUT */}
+        <input
+          placeholder="Token address (0x...)"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          style={{
+            width: "100%",
+            padding: 12,
+            borderRadius: 12,
+            background: "#000",
+            color: "#fff",
+            border: "1px solid #444",
+            marginBottom: 14,
+            fontSize: 14,
+            boxShadow: "0 0 12px rgba(0,200,255,0.25)",
+          }}
+        />
+
+        {/* BUTTON */}
+        <button
+          onClick={burnToken}
+          disabled={loading}
+          style={{
+            width: "100%",
+            padding: "12px 16px",
+            borderRadius: 12,
+            background:
+              "linear-gradient(135deg, #ff0077, #ff0055)",
+            border: "none",
+            fontSize: 15,
+            fontWeight: 600,
+            boxShadow: "0 0 14px rgba(255,0,90,0.7)",
+            cursor: "pointer",
+            marginBottom: 10,
+          }}
+        >
+          {loading ? "Burning…" : "Burn & Claim 10 CYT"}
+        </button>
+
+        {/* STATUS */}
+        <p
+          style={{
+            textAlign: "center",
+            fontSize: 12,
+            color: "#bbb",
+            marginTop: 10,
+            minHeight: 20,
+          }}
+        >
+          {status}
         </p>
       </div>
-    </div>
+    </main>
   );
 }
