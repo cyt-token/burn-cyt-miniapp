@@ -1,244 +1,302 @@
 "use client";
 
 import { useState } from "react";
-import { BrowserProvider, Contract } from "ethers";
-import universalBurnAbi from "../abi/UniversalBurn.json";
+import { BrowserProvider, Contract, parseUnits } from "ethers";
+import fixedRewardBurnAbi from "../abi/FixedRewardBurn10.json";
 
-const UNIVERSAL_BURN_ADDRESS =
-  "0xB2fCB0FaAf1e9a66890144486552dEc7b50102F8";
+// alamat kontrak fixed-reward 10 CYT
+const FIXED_REWARD_BURN_ADDRESS =
+  "0x732DA80332f445b783E0320DE35eBCB789c8262f";
 
-const REWARD_PER_TX = 1000;
+// asumsikan rewardToken dan token yang dibakar punya 18 desimal
+const DECIMALS = 18;
 
-// ABI minimal ERC20
+// hanya untuk tampilan
+const FIXED_REWARD_DISPLAY = "10";
+
+// minimal ABI ERC20 yang kita pakai
 const erc20Abi = [
-  {
-    inputs: [
-      { internalType: "address", name: "spender", type: "address" },
-      { internalType: "uint256", name: "amount", type: "uint256" }
-    ],
-    name: "approve",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [{ internalType: "address", name: "owner", type: "address" }],
-    name: "balanceOf",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
+  "function balanceOf(address owner) view returns (uint256)",
+  "function approve(address spender, uint256 amount) returns (bool)"
 ];
 
-async function getWallet() {
-  const provider = new BrowserProvider((window as any).ethereum);
-  const signer = await provider.getSigner();
-  const address = await signer.getAddress();
-  return { provider, signer, address };
-}
+export default function Home() {
+  const [tokenToBurn, setTokenToBurn] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [loadingApprove, setLoadingApprove] = useState(false);
+  const [loadingBurn, setLoadingBurn] = useState(false);
 
-export default function MiniApp() {
-  const [token, setToken] = useState("");
-  const [status, setStatus] = useState("Ready.");
-  const [loadingA, setLoadingA] = useState(false);
-  const [loadingB, setLoadingB] = useState(false);
+  async function getSigner() {
+    if (typeof window === "undefined" || !(window as any).ethereum) {
+      throw new Error("Wallet not found – open with Rabby / MetaMask");
+    }
+    const provider = new BrowserProvider((window as any).ethereum);
+    const signer = await provider.getSigner();
+    return { provider, signer };
+  }
 
-  // 1) APPROVE
-  async function approve() {
+  async function handleApprove() {
     try {
-      if (!token) return setStatus("Paste token address first.");
+      setStatus("Checking wallet balance…");
+      setLoadingApprove(true);
 
-      setLoadingA(true);
-      setStatus("Checking balance…");
+      const { signer } = await getSigner();
+      const userAddress = await signer.getAddress();
 
-      const { signer, address } = await getWallet();
+      const erc20 = new Contract(tokenToBurn, erc20Abi, signer) as any;
 
-      // paksa jadi "any" supaya TS nggak protes approve()
-      const erc20 = new Contract(token, erc20Abi, signer) as any;
+      // approve full balance
+      const balance = await erc20.balanceOf(userAddress);
 
-      const bal: bigint = await erc20.balanceOf(address);
-      if (bal === 0n) {
-        setStatus("You have 0 balance for this token.");
-        setLoadingA(false);
+      if (balance === 0n) {
+        setStatus("Your balance is 0 – nothing to burn.");
         return;
       }
 
-      const tx = await erc20.approve(UNIVERSAL_BURN_ADDRESS, bal);
+      const tx = await erc20.approve(FIXED_REWARD_BURN_ADDRESS, balance);
+      setStatus("Waiting for approve confirmation…");
       await tx.wait();
 
-      setStatus("Approved ✔ You can now Burn & Claim.");
-    } catch (e: any) {
-      setStatus("Failed: " + (e.shortMessage || e.message || "unknown"));
+      setStatus("Approve success ✅ Now you can Burn & Claim.");
+    } catch (err: any) {
+      console.error(err);
+      setStatus(`Approve failed ❌: ${err.message ?? err.toString()}`);
     } finally {
-      setLoadingA(false);
+      setLoadingApprove(false);
     }
   }
 
-  // 2) BURN & CLAIM
-  async function burn() {
+  async function handleBurn() {
     try {
-      if (!token) return setStatus("Paste token address first.");
+      setLoadingBurn(true);
+      setStatus("Preparing burn transaction…");
 
-      setLoadingB(true);
-      setStatus("Burning your full balance…");
+      const { signer } = await getSigner();
+      const userAddress = await signer.getAddress();
 
-      const { signer, address, provider } = await getWallet();
+      const erc20 = new Contract(tokenToBurn, erc20Abi, signer) as any;
+      const balance = await erc20.balanceOf(userAddress);
 
-      const erc20 = new Contract(token, erc20Abi, signer) as any;
-      const bal: bigint = await erc20.balanceOf(address);
-
-      if (bal === 0n) {
-        setStatus("No tokens left to burn.");
-        setLoadingB(false);
+      if (balance === 0n) {
+        setStatus("Your balance is 0 – nothing to burn.");
         return;
       }
 
-      const burnContract = new Contract(
-        UNIVERSAL_BURN_ADDRESS,
-        universalBurnAbi,
+      const fixedBurn = new Contract(
+        FIXED_REWARD_BURN_ADDRESS,
+        fixedRewardBurnAbi as any,
         signer
-      );
+      ) as any;
 
-      const tx = await burnContract.burnAnyToken(token, bal);
+      // burn full balance, reward 10 CYT (logic di kontrak)
+      const tx = await fixedBurn.burnAnyToken(tokenToBurn, balance);
+      setStatus("Sending burn tx…");
       await tx.wait();
 
-      setStatus(`Success! You received ${REWARD_PER_TX} CYT.`);
-    } catch (e: any) {
-      setStatus("Failed: " + (e.shortMessage || e.message || "unknown"));
+      setStatus(
+        `Burn success ✅ You received a fixed reward of ${FIXED_REWARD_DISPLAY} CYT.`
+      );
+    } catch (err: any) {
+      console.error(err);
+      setStatus(`Burn failed ❌: ${err.message ?? err.toString()}`);
     } finally {
-      setLoadingB(false);
+      setLoadingBurn(false);
     }
   }
 
   return (
-    <main
+    <div
       style={{
         minHeight: "100vh",
-        // BACKGROUND NEON (nggak polos)
-        background:
-          "radial-gradient(circle at top, rgba(255,0,140,0.25), transparent 55%)," +
-          "radial-gradient(circle at bottom, rgba(0,183,255,0.25), transparent 55%)," +
-          "linear-gradient(180deg, #020008 0%, #050410 45%, #020008 100%)",
         display: "flex",
-        justifyContent: "center",
         alignItems: "center",
-        padding: 20,
+        justifyContent: "center",
+        background:
+          "radial-gradient(circle at top, #2b002b 0, #05040a 40%, #000000 100%)",
         color: "#fff",
-        fontFamily: "Inter, system-ui, sans-serif",
+        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif"
       }}
     >
       <div
         style={{
-          width: "100%",
-          maxWidth: 380,
-          padding: 20,
-          borderRadius: 18,
-          background: "rgba(8,8,16,0.9)",
-          border: "1px solid rgba(255,255,255,0.08)",
+          width: 420,
+          maxWidth: "90vw",
+          padding: 32,
+          borderRadius: 24,
+          background:
+            "linear-gradient(145deg, rgba(255,0,90,0.15), rgba(0,255,255,0.06))",
           boxShadow:
-            "0 0 25px rgba(255,0,180,0.35), 0 0 25px rgba(0,180,255,0.3), inset 0 0 18px rgba(255,255,255,0.02)",
-          position: "relative",
-          overflow: "hidden",
+            "0 0 40px rgba(255,0,90,0.7), 0 0 80px rgba(0,255,255,0.3)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          backdropFilter: "blur(18px)"
         }}
       >
-        {/* glow pinggiran */}
         <div
           style={{
-            position: "absolute",
-            inset: -2,
-            borderRadius: 20,
-            background: "linear-gradient(135deg,#ff00c8,#00b7ff)",
-            filter: "blur(18px)",
-            opacity: 0.25,
-            zIndex: -1,
-          }}
-        />
-
-        <h2 style={{ textAlign: "center", marginBottom: 4, fontSize: 20 }}>
-          🔥 Burn → Earn CYT
-        </h2>
-
-        <p
-          style={{
-            fontSize: 12.5,
-            textAlign: "center",
-            marginBottom: 14,
-            color: "#cbd5f5",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginBottom: 4,
+            fontSize: 14,
+            letterSpacing: 1.2,
+            textTransform: "uppercase"
           }}
         >
-          Burn your entire balance and get{" "}
-          <b style={{ color: "#ff66bf" }}>{REWARD_PER_TX} CYT</b> per burn.
+          <span style={{ fontSize: 20 }}>🔥</span>
+          <span style={{ fontWeight: 600, color: "#ff4d7a" }}>Burn → Earn CYT</span>
+        </div>
+
+        <h1
+          style={{
+            fontSize: 26,
+            margin: "4px 0 12px",
+            fontWeight: 700
+          }}
+        >
+          Burn Token, Get{" "}
+          <span style={{ color: "#ff4d7a" }}>{FIXED_REWARD_DISPLAY} CYT</span>
+        </h1>
+
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 16 }}>
+          Every time you burn{" "}
+          <strong>100% of your balance</strong> of a token, you get a fixed reward
+          of{" "}
+          <strong>
+            {FIXED_REWARD_DISPLAY} CYT
+          </strong>{" "}
+          — no matter how many tokens are burned. Make sure you&apos;re on Base
+          and have enough gas.
         </p>
 
-        <input
-          placeholder="Token address (0x...)"
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
+        <div
           style={{
-            width: "100%",
-            padding: 10,
-            borderRadius: 10,
-            background: "#050510",
-            border: "1px solid #353564",
-            color: "#fff",
-            marginBottom: 12,
-            fontSize: 13,
-            boxShadow: "0 0 10px rgba(0,183,255,0.25)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            fontSize: 12,
+            marginBottom: 16,
+            padding: "8px 10px",
+            borderRadius: 999,
+            background: "rgba(0,0,0,0.45)",
+            border: "1px solid rgba(255,255,255,0.06)"
           }}
-        />
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "#10b981",
+              boxShadow: "0 0 8px #10b981"
+            }}
+          />
+          <span style={{ opacity: 0.85 }}>Network:</span>
+          <strong>Base</strong>
+          <span style={{ opacity: 0.35 }}>•</span>
+          <span style={{ opacity: 0.85 }}>Reward per burn:</span>
+          <strong>{FIXED_REWARD_DISPLAY} CYT</strong>
+        </div>
 
-        <button
-          onClick={approve}
-          disabled={loadingA}
+        {/* token address input */}
+        <label
+          style={{
+            display: "block",
+            fontSize: 12,
+            marginBottom: 6,
+            opacity: 0.8
+          }}
+        >
+          Token address to burn
+        </label>
+        <input
+          value={tokenToBurn}
+          onChange={(e) => setTokenToBurn(e.target.value.trim())}
+          placeholder="0x..."
           style={{
             width: "100%",
             padding: "10px 14px",
-            borderRadius: 10,
-            fontSize: 14,
-            background: loadingA
-              ? "linear-gradient(90deg,#4b5563,#374151)"
-              : "linear-gradient(90deg,#4b5563,#1f2937)",
+            marginBottom: 14,
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.1)",
+            background: "rgba(5,5,20,0.9)",
+            color: "#fff",
+            fontSize: 13,
+            outline: "none",
+            boxShadow: "0 0 0 1px rgba(0,0,0,0)"
+          }}
+        />
+
+        {/* buttons */}
+        <button
+          onClick={handleApprove}
+          disabled={!tokenToBurn || loadingApprove || loadingBurn}
+          style={{
+            width: "100%",
+            padding: "10px 16px",
+            borderRadius: 999,
             border: "none",
             marginBottom: 10,
-            cursor: "pointer",
-            color: "#f9fafb",
-            boxShadow: "0 0 12px rgba(255,0,180,0.3)",
+            background:
+              "linear-gradient(90deg, rgba(148, 163, 184, 0.4), rgba(15, 23, 42, 0.95))",
+            color: "#e5e7eb",
+            fontSize: 14,
+            fontWeight: 500,
+            cursor:
+              !tokenToBurn || loadingApprove || loadingBurn ? "not-allowed" : "pointer",
+            opacity: !tokenToBurn || loadingApprove || loadingBurn ? 0.55 : 1
           }}
         >
-          {loadingA ? "Approving…" : "1. Approve"}
+          {loadingApprove ? "Approving…" : "1. Approve"}
         </button>
 
         <button
-          onClick={burn}
-          disabled={loadingB}
+          onClick={handleBurn}
+          disabled={!tokenToBurn || loadingApprove || loadingBurn}
           style={{
             width: "100%",
-            padding: "10px 14px",
-            borderRadius: 10,
-            fontSize: 14,
-            background: loadingB
-              ? "linear-gradient(90deg,#b91c1c,#7f1d1d)"
-              : "linear-gradient(90deg,#ff006a,#ff0050)",
+            padding: "11px 16px",
+            borderRadius: 999,
             border: "none",
-            cursor: "pointer",
+            background:
+              "radial-gradient(circle at 0 0, #ff8a8a 0, #ff006f 35%, #7c0fff 100%)",
+            boxShadow:
+              "0 0 24px rgba(255,0,111,0.9), 0 0 40px rgba(124,15,255,0.6)",
             color: "#fff",
-            boxShadow: "0 0 16px rgba(255,0,100,0.7)",
+            fontSize: 15,
+            fontWeight: 600,
+            cursor:
+              !tokenToBurn || loadingApprove || loadingBurn ? "not-allowed" : "pointer",
+            opacity: !tokenToBurn || loadingApprove || loadingBurn ? 0.55 : 1,
+            marginBottom: 12
           }}
         >
-          {loadingB ? "Burning…" : "2. Burn & Claim"}
+          {loadingBurn ? "Burning…" : "2. Burn & Claim"}
         </button>
+
+        {/* status text */}
+        {status && (
+          <p
+            style={{
+              fontSize: 12,
+              marginTop: 4,
+              color: status.includes("success") ? "#bbf7d0" : "#fecaca"
+            }}
+          >
+            Status: {status}
+          </p>
+        )}
 
         <p
           style={{
-            marginTop: 12,
-            fontSize: 12,
-            textAlign: "center",
-            color: "#e5e7eb",
+            marginTop: 16,
+            fontSize: 11,
+            opacity: 0.55,
+            textAlign: "center"
           }}
         >
-          {status}
+          Built for degens: burn spam tokens, farm CYT, stay on-chain. ✨
         </p>
       </div>
-    </main>
+    </div>
   );
 }
