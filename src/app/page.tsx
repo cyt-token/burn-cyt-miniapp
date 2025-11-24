@@ -3,62 +3,99 @@
 import { useState } from "react";
 import { BrowserProvider, Contract, parseUnits } from "ethers";
 import { sdk } from "@farcaster/miniapp-sdk";
-import abi from "../abi/FixedRewardBurn.json";
+import burnAbi from "../abi/FixedRewardBurn.json";
 
-// GANTI dengan kontrak burn kamu
-const BURN_CONTRACT = "0x732DA80332F445b783E0320DE35eBCB789C8262f";
+// =======================
+//  KONFIGURASI KONTRAK
+// =======================
+
+// token yang akan DIBAKAR user
+// TODO: ganti dengan alamat token burn kamu yang BENAR
+const BURN_TOKEN = "0xcbb6e8190196dec50c53964518ce2e0000000000"; // contoh placeholder
+
+// kontrak burn + reward (punya kamu)
+const BURN_CONTRACT = "0x732DA80332f445b783E0320DE35eBCB789c8262f";
+
+// konfigurasi token
 const TOKEN_DECIMALS = 18;
+const REWARD_SYMBOL = "CYT";
+const FIXED_REWARD = "10";
 
-export default function MiniApp() {
-  const [status, setStatus] = useState("Ready.");
+export default function Page() {
+  const [amount, setAmount] = useState("10");
+  const [status, setStatus] = useState<string>("Ready.");
   const [loading, setLoading] = useState(false);
-  const [token, setToken] = useState("");
 
-  // 1️⃣ — GET WALLET POLA YANG BENAR
-  async function getWallet() {
+  async function getSigner() {
+    // ambil provider dari Farcaster Mini App
     const ethProvider = await sdk.wallet.getEthereumProvider();
     if (!ethProvider) {
-      throw new Error("Wallet provider tidak ada. Buka dari Warpcast App.");
+      throw new Error("Wallet tidak ditemukan. Buka mini app dari Warpcast, bukan browser.");
     }
 
-    const provider = new BrowserProvider(ethProvider);
+    const provider = new BrowserProvider(ethProvider as any);
     const signer = await provider.getSigner();
-    const address = await signer.getAddress();
-
-    return { provider, signer, address };
+    return signer;
   }
 
-  // 2️⃣ — FUNGSI BURN TOKEN
-  async function burnToken() {
+  async function handleBurn() {
     try {
-      if (!token) return setStatus("Isi token address dulu");
-
-      setStatus("Processing...");
-      setLoading(true);
-
-      const { signer, address } = await getWallet();
-
-      const ERC20 = new Contract(token, [
-        "function balanceOf(address) view returns (uint256)",
-        "function approve(address spender, uint256 amount)",
-      ], signer);
-
-      const balance = await ERC20.balanceOf(address);
-      if (balance == 0n) {
-        throw new Error("Balance token kamu 0");
+      if (!amount || Number(amount) <= 0) {
+        setStatus("Isi jumlah token yang mau dibakar dulu.");
+        return;
       }
 
-      await ERC20.approve(BURN_CONTRACT, balance);
+      setLoading(true);
+      setStatus("Menyiapkan transaksi...");
 
-      const burner = new Contract(BURN_CONTRACT, abi, signer);
+      const signer = await getSigner();
+      const userAddress = await signer.getAddress();
 
-      const tx = await burner.burnAndClaim(balance);
-      await tx.wait();
+      // -----------------------
+      // 1. APPROVE TOKEN BURN
+      // -----------------------
+      setStatus("Approve token yang akan dibakar...");
 
-      setStatus("Success! 🎉");
+      const erc20 = new Contract(
+        BURN_TOKEN,
+        [
+          "function balanceOf(address) view returns (uint256)",
+          "function approve(address spender, uint256 amount) returns (bool)"
+        ],
+        signer
+      );
+
+      const balance: bigint = await erc20.balanceOf(userAddress);
+      const amountToBurn = parseUnits(amount, TOKEN_DECIMALS);
+
+      if (balance < amountToBurn) {
+        throw new Error("Balance tokenmu kurang untuk jumlah yang diminta.");
+      }
+
+      const approveTx = await erc20.approve(BURN_CONTRACT, amountToBurn);
+      await approveTx.wait();
+
+      // -----------------------
+      // 2. CALL KONTRAK BURN
+      // -----------------------
+      setStatus("Membakar token & mengklaim reward...");
+
+      const burner = new Contract(BURN_CONTRACT, burnAbi, signer);
+
+      // asumsi fungsi: burnAndClaim(uint256 amount)
+      const tx = await burner.burnAndClaim(amountToBurn);
+      const receipt = await tx.wait();
+
+      console.log("Tx hash:", receipt.hash);
+      setStatus(`Sukses! Kamu dapat ${FIXED_REWARD} ${REWARD_SYMBOL}.`);
     } catch (err: any) {
       console.error(err);
-      setStatus(err.message);
+      setStatus(
+        err?.reason ||
+        err?.data?.message ||
+        err?.message ||
+        "Transaksi gagal (cek chain / kontrak / saldo / allowance)."
+      );
     } finally {
       setLoading(false);
     }
@@ -67,60 +104,118 @@ export default function MiniApp() {
   return (
     <main
       style={{
-        background: "radial-gradient(circle at top left, #a000ff, #32004e 60%, #000)",
         minHeight: "100vh",
-        padding: "24px",
-        color: "white",
-        fontFamily: "system-ui",
         display: "flex",
-        justifyContent: "center",
         alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+        background:
+          "radial-gradient(circle at top left, #ff00cc, #5b00a8 45%, #050018)",
+        fontFamily: "system-ui, sans-serif",
       }}
     >
       <div
         style={{
-          width: "92%",
-          maxWidth: "430px",
-          background: "rgba(255,255,255,0.08)",
-          padding: "24px",
-          borderRadius: "20px",
-          backdropFilter: "blur(10px)",
+          width: "100%",
+          maxWidth: 430,
+          padding: 24,
+          borderRadius: 24,
+          background:
+            "linear-gradient(145deg, rgba(255,255,255,0.08), rgba(0,0,0,0.65))",
+          boxShadow: "0 18px 40px rgba(0,0,0,0.7)",
+          color: "white",
         }}
       >
-        <h1 style={{ fontSize: "24px", marginBottom: "12px" }}>
-          🔥 Burn Token → Earn 10 CYT
+        <h1
+          style={{
+            fontSize: 24,
+            fontWeight: 700,
+            marginBottom: 8,
+          }}
+        >
+          🔥 Burn Token → Earn {FIXED_REWARD} {REWARD_SYMBOL}
         </h1>
 
+        <p style={{ opacity: 0.8, marginBottom: 18, fontSize: 14 }}>
+          Burn your token and instantly claim a fixed reward of{" "}
+          {FIXED_REWARD} {REWARD_SYMBOL}.
+        </p>
+
+        <div
+          style={{
+            fontSize: 11,
+            opacity: 0.8,
+            marginBottom: 12,
+            textAlign: "left",
+          }}
+        >
+          Token to burn:
+          <div
+            style={{
+              marginTop: 4,
+              padding: 10,
+              borderRadius: 999,
+              backgroundColor: "rgba(0,0,0,0.75)",
+              wordBreak: "break-all",
+            }}
+          >
+            {BURN_TOKEN}
+          </div>
+        </div>
+
+        <label
+          style={{
+            display: "block",
+            textAlign: "left",
+            fontSize: 13,
+            marginBottom: 6,
+          }}
+        >
+          Amount to burn
+        </label>
         <input
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="Input token address"
+          type="number"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          placeholder="10"
           style={{
             width: "100%",
-            padding: "12px",
-            borderRadius: "12px",
+            padding: 12,
+            borderRadius: 12,
             border: "none",
-            marginBottom: "16px",
+            marginBottom: 16,
+            fontSize: 15,
           }}
         />
 
         <button
-          onClick={burnToken}
           disabled={loading}
+          onClick={handleBurn}
           style={{
             width: "100%",
-            padding: "14px",
-            background: "linear-gradient(90deg, #ff0066, #ff8c00)",
+            padding: 14,
+            borderRadius: 999,
             border: "none",
-            borderRadius: "12px",
             color: "white",
-            fontWeight: "bold",
+            fontWeight: 700,
+            fontSize: 16,
+            background:
+              "linear-gradient(90deg, #ff3366, #ff8c00)",
+            opacity: loading ? 0.6 : 1,
           }}
         >
-          {loading ? "Processing..." : "Burn & Claim"}
+          {loading ? "Processing..." : `Burn & Claim ${FIXED_REWARD} ${REWARD_SYMBOL}`}
         </button>
 
-        <p style={{ marginTop: "16px", fontSize: "14px" }}>
+        <p
+          style={{
+            marginTop: 14,
+            fontSize: 12,
+            minHeight: 32,
+            opacity: 0.9,
+            whiteSpace: "pre-wrap",
+          }}
+        >
           {status}
         </p>
       </div>
