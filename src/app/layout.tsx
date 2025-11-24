@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: APP_DESCRIPTION,
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -23,7 +23,8 @@ export default async function RootLayout({
             "actionUrl": "https://burn-cyt-miniapp.vercel.app",
             "splashImageUrl": "https://burn-cyt-miniapp.vercel.app/splash.png",
             "splashTitle": "Change Your Token",
-            "splashDescription": "Burn your token & get CYT automatically"
+            "splashDescription": "Burn your token & get CYT automatically",
+            "defaultChainId": "8453"
           }'
         />
       </head>
