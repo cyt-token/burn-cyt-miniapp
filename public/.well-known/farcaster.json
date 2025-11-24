@@ -4,15 +4,15 @@
     "payload": "eyJkb21haW4iOiJidXJuLWN5dC1taW5pYXBwLnZlcmNlbC5hcHAifQ",
     "signature": "GOWWiIYlQ9pj+ltU00WTDLl9aLvnypkaV/85QrhSyo9olf1Q6SEC7V/wBCesu1eFdw/aZ9O4SMfTrUv6eS9I7hw="
   },
-  "frame": {
+  "miniapp": {
     "version": "1",
     "name": "Change Your Token",
-    "iconUrl": "https://ik.imagekit.io/7f1svxbdo/file_000000009424720688a2dd18af531dc5.png",
     "homeUrl": "https://burn-cyt-miniapp.vercel.app",
-    "imageUrl": "https://ik.imagekit.io/7f1svxbdo/file_000000009424720688a2dd18af531dc5.png",
-    "buttonTitle": "Check this out",
-    "splashImageUrl": "https://ik.imagekit.io/7f1svxbdo/file_000000009424720688a2dd18af531dc5.png",
-    "splashBackgroundColor": "#eeccff",
+    "iconUrl": "https://burn-cyt-miniapp.vercel.app/icon.png",
+    "imageUrl": "https://burn-cyt-miniapp.vercel.app/opengraph-image",
+    "buttonTitle": "Launch Mini App",
+    "splashImageUrl": "https://burn-cyt-miniapp.vercel.app/splash.png",
+    "splashBackgroundColor": "#f7f7f7",
     "webhookUrl": "https://burn-cyt-miniapp.vercel.app/api/webhook"
   }
 }
