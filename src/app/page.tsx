@@ -5,68 +5,48 @@ import { BrowserProvider, Contract } from "ethers";
 import { sdk } from "@farcaster/miniapp-sdk";
 import burnAbi from "../abi/FixedRewardBurn.json";
 
-// alamat kontrak reward/burn kamu
+// Contract address (your burn + reward contract)
 const BURN_CONTRACT = "0x732DA80332f445b783E0320DE35eBCB789c8262f";
 
-// NAMA FUNGSI DI KONTRAK KAMU
-// ⚠️ EDIT INI SUPAYA SAMA DENGAN KONTRAK
-// misal: "burnAndClaim", "changeYourToken", dll.
-const BURN_FUNCTION_NAME = "burnAndClaimAll"; // GANTI nama fungsi sesuai kontrak
-
-const REWARD_SYMBOL = "CYT";
-const FIXED_REWARD = "10";
+// TODO — replace later after ABI check
+const CONTRACT_FUNCTION_NAME = "REPLACE_ME";
 
 export default function Page() {
   const [tokenAddress, setTokenAddress] = useState("");
-  const [status, setStatus] = useState<string>("Paste token address yang mau kamu burn.");
+  const [status, setStatus] = useState("Enter the token address you want to burn.");
   const [loading, setLoading] = useState(false);
 
   async function getSigner() {
     const ethProvider = await sdk.wallet.getEthereumProvider();
-    if (!ethProvider) {
-      throw new Error("Wallet tidak ditemukan. Buka mini app dari Warpcast app, bukan browser biasa.");
-    }
+    if (!ethProvider) throw new Error("Wallet not found. Please open this Mini App inside Warpcast.");
 
     const provider = new BrowserProvider(ethProvider as any);
-    const signer = await provider.getSigner();
-    return signer;
+    return provider.getSigner();
   }
 
   async function handleBurn() {
     try {
       if (!tokenAddress) {
-        setStatus("Isi dulu alamat token yang mau dibakar.");
+        setStatus("Please enter a token address.");
         return;
       }
 
       setLoading(true);
-      setStatus("Menghubungkan wallet...");
+      setStatus("Preparing transaction...");
 
       const signer = await getSigner();
       const burner = new Contract(BURN_CONTRACT, burnAbi, signer);
 
-      setStatus("Membakar semua token & klaim reward...");
+      setStatus("Executing burn + reward transaction...");
 
-      // ⚠️ BAGIAN PENTING: CALL FUNGSI TANPA AMOUNT
-      // Kalau fungsi di kontrak kamu: burnAndClaim(address token)
-      // maka barisnya:
-      //   const tx = await burner.burnAndClaim(tokenAddress);
-      //
-      // Kalau namanya beda, samain dengan BURN_FUNCTION_NAME di atas:
-      const tx = await burner[BURN_FUNCTION_NAME](tokenAddress);
+      // TODO — replace after ABI inspection
+      const tx = await burner[CONTRACT_FUNCTION_NAME](tokenAddress);
+      await tx.wait();
 
-      const receipt = await tx.wait();
-      console.log("Tx hash:", receipt.hash);
-
-      setStatus(`Sukses! Semua token di-burn dan kamu dapat ${FIXED_REWARD} ${REWARD_SYMBOL}.`);
+      setStatus("Success! Your tokens were burned and you received 10 CYT.");
     } catch (err: any) {
       console.error(err);
-      setStatus(
-        err?.reason ||
-          err?.data?.message ||
-          err?.message ||
-          "Transaksi gagal. Cek chain, kontrak, dan apakah fungsi / parameter sudah benar."
-      );
+      setStatus(err?.message || "Transaction failed.");
     } finally {
       setLoading(false);
     }
@@ -81,128 +61,71 @@ export default function Page() {
         justifyContent: "center",
         padding: "20px",
         background:
-          "radial-gradient(circle at top left, #ff00cc, #5b00f0 40%, #050016)",
-        fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, sans-serif",
+          "radial-gradient(circle at top left, #ff00cc, #5b00f0 40%, #070019)",
+        color: "white",
+        fontFamily: "system-ui, sans-serif",
       }}
     >
       <div
         style={{
           width: "100%",
           maxWidth: 420,
+          padding: 28,
           borderRadius: 28,
-          padding: 22,
-          background:
-            "linear-gradient(145deg, rgba(255,255,255,0.10), rgba(0,0,0,0.75))",
-          boxShadow: "0 18px 50px rgba(0,0,0,0.8)",
-          color: "white",
-          position: "relative",
-          overflow: "hidden",
+          background: "rgba(255,255,255,0.08)",
+          backdropFilter: "blur(12px)",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
         }}
       >
-        {/* Glow dekoratif */}
-        <div
+        <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 10 }}>
+          🔥 Burn Token → Earn 10 CYT
+        </h1>
+
+        <p style={{ opacity: 0.85, fontSize: 14, marginBottom: 20 }}>
+          Burn the entire balance of any token and instantly receive a fixed reward of <b>10 CYT</b>.
+        </p>
+
+        <label style={{ fontSize: 13, marginBottom: 6, display: "block" }}>
+          Token address to burn
+        </label>
+
+        <input
+          value={tokenAddress}
+          onChange={(e) => setTokenAddress(e.target.value)}
+          placeholder="0x..."
           style={{
-            position: "absolute",
-            inset: -40,
-            background:
-              "radial-gradient(circle at top left, rgba(255,255,255,0.22), transparent 60%)",
-            opacity: 0.35,
-            pointerEvents: "none",
+            width: "100%",
+            padding: 12,
+            borderRadius: 12,
+            border: "none",
+            marginBottom: 16,
+            background: "rgba(0,0,0,0.6)",
+            color: "white",
+            fontSize: 14,
           }}
         />
 
-        <div style={{ position: "relative" }}>
-          <div
-            style={{
-              fontSize: 12,
-              opacity: 0.8,
-              marginBottom: 6,
-              letterSpacing: 1.2,
-              textTransform: "uppercase",
-            }}
-          >
-            Change Your Token
-          </div>
+        <button
+          disabled={loading}
+          onClick={handleBurn}
+          style={{
+            width: "100%",
+            padding: 15,
+            borderRadius: 999,
+            border: "none",
+            fontSize: 16,
+            fontWeight: 700,
+            color: "white",
+            background: "linear-gradient(90deg, #ff3366, #ff8c00)",
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          {loading ? "Processing..." : "Burn & Claim 10 CYT"}
+        </button>
 
-          <h1
-            style={{
-              fontSize: 24,
-              fontWeight: 800,
-              marginBottom: 4,
-            }}
-          >
-            🔥 Burn Token → Earn {FIXED_REWARD} {REWARD_SYMBOL}
-          </h1>
-
-          <p
-            style={{
-              fontSize: 13,
-              opacity: 0.86,
-              marginBottom: 18,
-            }}
-          >
-            Burn seluruh balance token pilihanmu dan klaim reward tetap{" "}
-            <strong>{FIXED_REWARD} {REWARD_SYMBOL}</strong> langsung ke wallet.
-          </p>
-
-          <label
-            style={{
-              display: "block",
-              fontSize: 13,
-              marginBottom: 6,
-              opacity: 0.9,
-            }}
-          >
-            Token address yang mau dibakar
-          </label>
-          <input
-            value={tokenAddress}
-            onChange={(e) => setTokenAddress(e.target.value.trim())}
-            placeholder="0x..."
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 14,
-              border: "none",
-              fontSize: 13,
-              backgroundColor: "rgba(0,0,0,0.7)",
-              color: "white",
-              marginBottom: 14,
-            }}
-          />
-
-          <button
-            onClick={handleBurn}
-            disabled={loading}
-            style={{
-              width: "100%",
-              padding: 14,
-              borderRadius: 999,
-              border: "none",
-              fontWeight: 700,
-              fontSize: 15,
-              color: "white",
-              background:
-                "linear-gradient(90deg, #ff3366, #ff8c00)",
-              boxShadow: "0 8px 20px rgba(0,0,0,0.6)",
-              opacity: loading ? 0.6 : 1,
-            }}
-          >
-            {loading ? "Processing..." : `Burn & Claim ${FIXED_REWARD} ${REWARD_SYMBOL}`}
-          </button>
-
-          <p
-            style={{
-              marginTop: 14,
-              fontSize: 12,
-              minHeight: 32,
-              opacity: 0.95,
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {status}
-          </p>
-        </div>
+        <p style={{ marginTop: 16, fontSize: 12, opacity: 0.9 }}>
+          {status}
+        </p>
       </div>
     </main>
   );
