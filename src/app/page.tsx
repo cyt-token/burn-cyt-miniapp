@@ -5,48 +5,35 @@ import { BrowserProvider, Contract } from "ethers";
 import { sdk } from "@farcaster/miniapp-sdk";
 import burnAbi from "../abi/FixedRewardBurn.json";
 
-// Contract address (your burn + reward contract)
-const BURN_CONTRACT = "0x732DA80332f445b783E0320DE35eBCB789c8262f";
-
-// TODO — replace later after ABI check
-const CONTRACT_FUNCTION_NAME = "REPLACE_ME";
+const CONTRACT = "0x732DA80332f445b783E0320DE35eBCB789c8262f";
 
 export default function Page() {
-  const [tokenAddress, setTokenAddress] = useState("");
-  const [status, setStatus] = useState("Enter the token address you want to burn.");
+  const [token, setToken] = useState("");
+  const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function getSigner() {
-    const ethProvider = await sdk.wallet.getEthereumProvider();
-    if (!ethProvider) throw new Error("Wallet not found. Please open this Mini App inside Warpcast.");
-
-    const provider = new BrowserProvider(ethProvider as any);
+    const eth = await sdk.wallet.getEthereumProvider();
+    if (!eth) throw new Error("Please open in Warpcast");
+    const provider = new BrowserProvider(eth);
     return provider.getSigner();
   }
 
-  async function handleBurn() {
+  async function burn() {
     try {
-      if (!tokenAddress) {
-        setStatus("Please enter a token address.");
-        return;
-      }
-
+      if (!token) return setStatus("Token address required");
       setLoading(true);
-      setStatus("Preparing transaction...");
+      setStatus("Burning...");
 
       const signer = await getSigner();
-      const burner = new Contract(BURN_CONTRACT, burnAbi, signer);
+      const contract = new Contract(CONTRACT, burnAbi, signer);
 
-      setStatus("Executing burn + reward transaction...");
-
-      // TODO — replace after ABI inspection
-      const tx = await burner[CONTRACT_FUNCTION_NAME](tokenAddress);
+      const tx = await contract.burnAnyToken(token);
       await tx.wait();
 
-      setStatus("Success! Your tokens were burned and you received 10 CYT.");
+      setStatus("🔥 Success! Token burned + 10 CYT rewarded.");
     } catch (err: any) {
-      console.error(err);
-      setStatus(err?.message || "Transaction failed.");
+      setStatus(err.message);
     } finally {
       setLoading(false);
     }
@@ -56,74 +43,68 @@ export default function Page() {
     <main
       style={{
         minHeight: "100vh",
+        padding: "16px",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "20px",
-        background:
-          "radial-gradient(circle at top left, #ff00cc, #5b00f0 40%, #070019)",
-        color: "white",
-        fontFamily: "system-ui, sans-serif",
+        background: "linear-gradient(135deg, #ff00aa, #6a00ff)",
+        fontFamily: "Inter, sans-serif",
+        color: "white"
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: 420,
-          padding: 28,
-          borderRadius: 28,
-          background: "rgba(255,255,255,0.08)",
-          backdropFilter: "blur(12px)",
-          boxShadow: "0 12px 40px rgba(0,0,0,0.7)",
+          maxWidth: 360,
+          padding: 20,
+          background: "rgba(255,255,255,0.1)",
+          borderRadius: 16,
+          backdropFilter: "blur(12px)"
         }}
       >
-        <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 10 }}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12 }}>
           🔥 Burn Token → Earn 10 CYT
-        </h1>
+        </h2>
 
-        <p style={{ opacity: 0.85, fontSize: 14, marginBottom: 20 }}>
-          Burn the entire balance of any token and instantly receive a fixed reward of <b>10 CYT</b>.
+        <p style={{ fontSize: 13, opacity: 0.8, marginBottom: 16 }}>
+          Burn any ERC-20 token and instantly receive a fixed reward.
         </p>
 
-        <label style={{ fontSize: 13, marginBottom: 6, display: "block" }}>
-          Token address to burn
-        </label>
-
         <input
-          value={tokenAddress}
-          onChange={(e) => setTokenAddress(e.target.value)}
-          placeholder="0x..."
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="Token address (0x...)"
           style={{
             width: "100%",
-            padding: 12,
+            padding: 10,
             borderRadius: 12,
+            background: "rgba(0,0,0,0.5)",
             border: "none",
-            marginBottom: 16,
-            background: "rgba(0,0,0,0.6)",
             color: "white",
-            fontSize: 14,
+            marginBottom: 14,
+            fontSize: 13
           }}
         />
 
         <button
           disabled={loading}
-          onClick={handleBurn}
+          onClick={burn}
           style={{
             width: "100%",
-            padding: 15,
+            padding: 12,
             borderRadius: 999,
             border: "none",
-            fontSize: 16,
-            fontWeight: 700,
+            background: "linear-gradient(90deg, #ff4d4d, #ff9900)",
             color: "white",
-            background: "linear-gradient(90deg, #ff3366, #ff8c00)",
-            opacity: loading ? 0.6 : 1,
+            fontSize: 15,
+            fontWeight: 700,
+            opacity: loading ? 0.6 : 1
           }}
         >
           {loading ? "Processing..." : "Burn & Claim 10 CYT"}
         </button>
 
-        <p style={{ marginTop: 16, fontSize: 12, opacity: 0.9 }}>
+        <p style={{ marginTop: 14, fontSize: 12, opacity: 0.9 }}>
           {status}
         </p>
       </div>
