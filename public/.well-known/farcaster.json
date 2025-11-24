@@ -1,0 +1,18 @@
+{
+  "accountAssociation": {
+    "header": "eyJmaWQiOjE0MzA3MDUsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHgyODE5YTdhNTFCMEI0OGQ0MDUzNzMxMzJhNTdBOWViNjhCREQxZUU2In0",
+    "payload": "eyJkb21haW4iOiJjeXR0b2tlbi5zcGFjZSJ9",
+    "signature": "Ho2W7e1DUca8VdAlt9dNQhyX/fDboMUu1gwSZ7bm/6IjCFyU30ivssXYs80ysvhX4km/DNF7JSpu0anEoWmJTBw="
+  },
+  "frame": {
+    "version": "1",
+    "name": "CYT Burn Mini App",
+    "iconUrl": "https://cyttoken.space/icon.png",
+    "homeUrl": "https://cyttoken.space",
+    "imageUrl": "https://cyttoken.space/cyt_logo.png",
+    "buttonTitle": "Burn & Claim CYT",
+    "splashImageUrl": "https://cyttoken.space/cyt_logo.png",
+    "splashBackgroundColor": "#E5010A",
+    "webhookUrl": "https://cyttoken.space/api/webhook"
+  }
+}
